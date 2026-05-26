@@ -1,22 +1,34 @@
 services:
+  # 1. FastAPI Backend Service
   - type: web
     name: geo-backend
     env: python
     repoRoot: backend
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: "pip install -r requirements.txt" # Simplified because repoRoot puts us here
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     autoDeploy: true
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.8" # Ensuring it forces the stable pre-compiled wheels
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: GROQ_API_KEY
+        sync: false # Set manually in Render Dashboard
+      - key: TAVILY_API_KEY
+        sync: false # Set manually in Render Dashboard
 
+  # 2. Streamlit Frontend Service
   - type: web
     name: geo-frontend
     env: python
     repoRoot: frontend
-    buildCommand: pip install -r frontend/requirements.txt
-    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
+    buildCommand: "pip install -r requirements.txt" # Simplified because repoRoot puts us here
+    startCommand: "streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
     autoDeploy: true
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.8"
       - key: STREAMLIT_SERVER_HEADLESS
         value: "true"
+      - key: BACKEND_URL
+        value: "https://geo-backend.onrender.com" # Replace with your live backend URL once live
