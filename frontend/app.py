@@ -1,9 +1,9 @@
 import streamlit as st
 import requests
 import json
+import os  # Added for environment variable management
 
 # ── PAGE CONFIG ────────────────────────────────────────────────────────────────
-
 st.set_page_config(
     page_title="GEO Fact Checker",
     page_icon="🛡️",
@@ -12,7 +12,6 @@ st.set_page_config(
 )
 
 # ── CSS ────────────────────────────────────────────────────────────────────────
-
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -33,8 +32,15 @@ html, body, [class*="css"] {
 .tag-row { display: flex; gap: 12px; margin-top: 2rem; margin-bottom: 2rem; flex-wrap: wrap; }
 .tag { background: #0d1324; border: 1px solid #1c2742; padding: 10px 16px; border-radius: 12px; color: #dce6ff; font-size: 0.85rem; }
 
-/* UPLOAD */
-.upload-box { background: #0b1120; border: 1px solid #1b2640; border-radius: 20px; padding: 24px; margin-top: 2rem; margin-bottom: 2rem; }
+/* UPLOAD CONTAINER */
+div[data-testid="stFileUploader"] {
+    background: #0b1120; 
+    border: 1px solid #1b2640; 
+    border-radius: 20px; 
+    padding: 24px; 
+    margin-top: 2rem; 
+    margin-bottom: 2rem;
+}
 
 /* KPI */
 .metric-card { background: linear-gradient(180deg,#0b1120,#0a0f1c); border: 1px solid #18233d; padding: 28px; border-radius: 18px; text-align: center; }
@@ -98,7 +104,6 @@ html, body, [class*="css"] {
 """, unsafe_allow_html=True)
 
 # ── HERO ───────────────────────────────────────────────────────────────────────
-
 st.markdown("""
 <div class="hero">
   <div style="font-size:0.9rem;color:#00d084;margin-bottom:12px;letter-spacing:1px;">
@@ -119,35 +124,34 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── UPLOAD ─────────────────────────────────────────────────────────────────────
-
-st.markdown('<div class="upload-box">', unsafe_allow_html=True)
 uploaded_file = st.file_uploader(
     "Upload PDF",
     type=["pdf"],
     label_visibility="collapsed",
     help="Max 200 MB. Text-based PDFs only (scanned images not supported).",
 )
-st.markdown("</div>", unsafe_allow_html=True)
 
 if not uploaded_file:
     st.info("📄 Upload a PDF above to begin AI-powered fact verification.")
     st.stop()
 
 # ── API CALL ───────────────────────────────────────────────────────────────────
-
-BACKEND_URL = "http://127.0.0.1:8000/fact-check"
+# Fixed: Read production URL dynamically from environment variables
+BACKEND_BASE_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+BACKEND_URL = f"{BACKEND_BASE_URL.rstrip('/')}/fact-check"
 
 progress_placeholder = st.empty()
 with progress_placeholder:
     with st.spinner("🔍 Extracting and verifying claims — this may take 30–60 seconds…"):
         try:
+            # Fixed: Repositioned variable definition safely to the left 
             response = requests.post(
                 BACKEND_URL,
                 files={"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")},
-                timeout=180,
+                timeout=180
             )
         except requests.exceptions.ConnectionError:
-            st.error("❌ Cannot reach the backend. Make sure FastAPI is running on port 8000.")
+            st.error(f"❌ Cannot reach the backend at {BACKEND_URL}. Make sure your API is up.")
             st.stop()
         except requests.exceptions.Timeout:
             st.error("⏱️ Request timed out. Try a shorter document.")
@@ -175,7 +179,6 @@ if not results:
     st.stop()
 
 # ── HELPERS ────────────────────────────────────────────────────────────────────
-
 _REFUTED = {"FALSE", "INACCURATE", "REFUTED", "INCORRECT", "WRONG"}
 
 def card_class(status: str) -> str:
@@ -201,12 +204,10 @@ def conf_color_class(conf: int) -> str:
     return "conf-low"
 
 # ── KPI COUNTERS ───────────────────────────────────────────────────────────────
-
 verified = sum(1 for r in results if r.get("status","").upper() == "VERIFIED")
 refuted  = sum(1 for r in results if r.get("status","").upper() in _REFUTED)
 uncertain = len(results) - verified - refuted
 
-# Accuracy score: verified / (verified + refuted) if any verdict exists
 verdict_total = verified + refuted
 accuracy = int(verified / verdict_total * 100) if verdict_total else 0
 
@@ -244,7 +245,6 @@ for col, num, label, color in [
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── FILTER TABS ────────────────────────────────────────────────────────────────
-
 st.subheader("Claim Analysis")
 
 filter_tab = st.radio(
@@ -265,7 +265,6 @@ def matches_filter(status: str) -> bool:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── CLAIM CARDS ────────────────────────────────────────────────────────────────
-
 shown = 0
 for index, item in enumerate(results):
     claim        = item.get("claim", "")
@@ -325,7 +324,6 @@ if shown == 0:
     st.info("No claims match this filter.")
 
 # ── DOWNLOAD ───────────────────────────────────────────────────────────────────
-
 st.markdown("<br><br>", unsafe_allow_html=True)
 
 col_a, col_b = st.columns([1, 3])
